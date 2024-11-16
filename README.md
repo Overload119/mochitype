@@ -1,3 +1,6 @@
+> [!WARNING]
+> WIP! You cannot use this gem yet. 
+
 # Mochitype
 
 For Ruby on Rails apps that have a Typescript frontend, there's no good way to make sure that the backend is sending a payload that the frontend understands.
