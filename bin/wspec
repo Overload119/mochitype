@@ -1,0 +1,2 @@
+#!/usr/bin/env bash -i
+watchexec --stop-timeout 0 -e rb -- bundle exec rspec "$@" --fail-fast

@@ -1,6 +1,3 @@
-require 'listen'
-require 'pry'
-
 module Mochitype
   class FileWatcher
     def self.start
@@ -10,11 +7,8 @@ module Mochitype
       path = Rails.root.join(Mochitype.configuration.watch_path)
       FileUtils.mkdir_p(path) unless File.directory?(path)
 
-
-
       Dir.glob("#{path}/**/*.rb").each do |file|
         begin
-          binding.pry
           TypeConverter.convert_file(file)
           Rails.logger.info "Mochitype: Successfully converted #{file} to TypeScript"
         rescue => e

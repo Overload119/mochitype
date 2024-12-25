@@ -1,21 +1,37 @@
-require 'prism'
+# typed: true
+# frozen_string_literal: true
 
 module Mochitype
   class TypeConverter
+    extend T::Sig
+
     class << self
+      extend T::Sig
+
+      class TypeData < T::Struct
+        const :name, String
+        const :props, T::Hash[String, String]
+      end
+
+      sig { params(file_path: String).returns(T.nilable(String)) }
       def convert_file(file_path)
         content = File.read(file_path)
         ast = parse_ruby(content)
+
+        return if ast.nil?
 
         typescript_content = generate_typescript(ast)
 
         output_file = determine_output_path(file_path)
         FileUtils.mkdir_p(File.dirname(output_file))
         File.write(output_file, typescript_content)
+
+        output_file
       end
 
       private
 
+      sig { params(content: String).returns(T.nilable(TypeData)) }
       def parse_ruby(content)
         result = Prism.parse(content)
 
@@ -23,57 +39,69 @@ module Mochitype
         struct_class = find_struct_class(result.value.statements)
         return nil unless struct_class
 
-        struct_name = struct_class.constant_path.name.to_s
+        struct_name = T.unsafe(struct_class).constant_path.name.to_s
         props = extract_props(struct_class)
 
-        { name: struct_name, props: props }
+        TypeData.new(name: struct_name, props: props)
       end
 
+      sig { params(statements: Prism::StatementsNode).returns(T.nilable(Prism::Node)) }
       def find_struct_class(statements)
         statements.body.find do |stmt|
           next unless stmt.is_a?(Prism::ClassNode)
 
           parent = stmt.superclass
-          next unless parent.is_a?(Prism::ConstantReadNode)
+          next unless parent.is_a?(Prism::ConstantPathNode)
 
-          # Check if it's T::Struct
           parent_path = parent.full_name
           parent_path == "T::Struct"
         end
       end
 
+      sig { params(class_node: Prism::ClassNode).returns(T::Hash[String, String]) }
       def extract_props(class_node)
         props = {}
 
-        class_node.body.statements.each do |stmt|
-          next unless stmt.is_a?(Prism::CallNode) && stmt.name == :prop
+        T
+          .cast(class_node.body, Prism::StatementsNode)
+          .body
+          .each do |stmt|
+            next unless stmt.is_a?(Prism::CallNode) && %i[prop const].include?(stmt.name)
 
-          # Get property name from first argument
-          name_node = stmt.arguments.arguments[0]
-          next unless name_node.is_a?(Prism::SymbolNode)
-          prop_name = name_node.value
+            stmt = T.unsafe(stmt)
 
-          # Get type from second argument
-          type_node = stmt.arguments.arguments[1]
-          props[prop_name] = convert_type_from_node(type_node)
-        end
+            name_node = stmt.arguments.arguments[0]
+            next unless name_node.is_a?(Prism::SymbolNode)
+            prop_name = name_node.value.to_s
+
+            # Get type from second argument
+            type_node = stmt.arguments.arguments[1]
+            props[prop_name] = convert_type_from_node(type_node)
+          end
 
         props
       end
 
+      sig { params(node: T.untyped).returns(String) }
       def convert_type_from_node(node)
+        # binding.pry
         case node
         when Prism::ConstantReadNode
-          case node.name
-          when "String" then "z.string()"
-          when "Integer" then "z.number()"
-          when "Float" then "z.number()"
-          else "z.unknown()"
+          case node.name.to_s
+          when "String"
+            "z.string()"
+          when "Integer"
+            "z.number()"
+          when "Float"
+            "z.number()"
+          else
+            "z.unknown()"
           end
         when Prism::ConstantPathNode
-          if node.parent&.name == "T"
-            case node.child.name
-            when "Boolean" then "z.boolean()"
+          if node.parent&.name.to_s == "T"
+            case node.child.name.to_s
+            when "Boolean"
+              "z.boolean()"
             when "Array"
               if node.arguments&.arguments&.first
                 inner_type = convert_type_from_node(node.arguments.arguments.first)
@@ -91,18 +119,39 @@ module Mochitype
                 "z.record(z.unknown(), z.unknown())"
               end
             when "Enum"
-              values = node.arguments&.arguments&.map do |arg|
-                arg.is_a?(Prism::StringNode) ? arg.content : nil
-              end.compact
-              "z.enum([#{values.map(&:inspect).join(', ')}])"
+              values =
+                node
+                  .arguments
+                  &.arguments
+                  &.map { |arg| arg.is_a?(Prism::StringNode) ? arg.content : nil }
+                  .compact
+              "z.enum([#{values.map(&:inspect).join(", ")}])"
             else
               "z.unknown()"
             end
           end
         when Prism::CallNode
-          if node.name == :nilable && node.receiver&.name == "T"
-            inner_type = convert_type_from_node(node.arguments.arguments.first)
-            "#{inner_type}.nullable()"
+          convert_type_from_call_node(node)
+        else
+          "z.unknown()"
+        end
+      end
+
+      sig { params(node: Prism::CallNode).returns(String) }
+      def convert_type_from_call_node(node)
+        receiver = node.receiver
+        if node.name == :nilable && receiver.is_a?(Prism::ConstantReadNode) && receiver.name == :T
+          inner_type = convert_type_from_node(node.arguments&.arguments&.first)
+          "#{inner_type}.nullable()"
+        elsif node.name == :[]
+          # Handles T::Array[x, y] or T::Hash[x]
+          if receiver.is_a?(Prism::ConstantPathNode) && receiver.full_name == "T::Array"
+            inner_type = convert_type_from_node(node.arguments&.arguments&.first)
+            "z.array(#{inner_type})"
+          elsif receiver.is_a?(Prism::ConstantPathNode) && receiver.full_name == "T::Hash"
+            key_type = convert_type_from_node(node.arguments&.arguments&.first)
+            value_type = convert_type_from_node(node.arguments&.arguments&.last)
+            "z.record(#{key_type}, #{value_type})"
           else
             "z.unknown()"
           end
@@ -111,25 +160,26 @@ module Mochitype
         end
       end
 
+      sig { params(ast: TypeData).returns(String) }
       def generate_typescript(ast)
-        return '' unless ast
+        imports = String.new("/**\n")
+        imports << "/* This file is generated by Mochitype. Do not edit it by hand.\n"
+        imports << "/**/\n\n"
+        imports << "import { z } from 'zod';\n\n"
 
-        imports = 'import { z } from "zod";\n\n'
-
-        schema = "export const #{ast[:name]}Schema = z.object({\n"
-        schema += ast[:props].map do |name, type|
-          "  #{name}: #{type}"
-        end.join(",\n")
+        schema = "export const #{ast.name}Schema = z.object({\n"
+        schema += ast.props.map { |name, type| "  #{name}: #{type}" }.join(",\n")
         schema += "\n});\n\n"
 
-        type = "export type #{ast[:name]} = z.infer<typeof #{ast[:name]}Schema>;\n"
+        type = "export type #{ast.name} = z.infer<typeof #{ast.name}Schema>;\n"
 
         imports + schema + type
       end
 
+      sig { params(input_path: String).returns(String) }
       def determine_output_path(input_path)
-        base_name = File.basename(input_path, '.*')
-        output_dir = Rails.root.join(Mochitype.configuration.output_path)
+        base_name = File.basename(input_path, ".*")
+        output_dir = Mochitype.configuration.output_path
         File.join(output_dir, "#{base_name}.ts")
       end
     end
