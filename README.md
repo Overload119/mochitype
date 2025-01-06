@@ -1,5 +1,5 @@
 > [!WARNING]
-> WIP! You cannot use this gem yet. 
+> WIP! You cannot use this gem yet.
 
 # Mochitype
 
@@ -98,10 +98,15 @@ export type UsersIndex = z.infer<typeof UsersIndexSchema>;
 
 Now if you change UsersController#index to return something different, it'll update the corresponding TypeScript file. Your backend and frontend are always in sync!
 
+## Limitations
+
+- Currently only works with T::Structs, T::Enum, and standard Ruby types like String, Integer, etc. If your struct has a field that's a custom class, it will be marked as `unknown`
+- Since we're using the Prism parser, it requires Ruby 3.3.5+
+- It does not de-dupe types across files. For example, if you have MyStruct and reference MyOtherStruct, both of those Typescript files will contain TS on MyOtherStruct.
+
 ## Development
 
-The easiest way is to `cd examples/example-app` and run `rails s`
-Edit code, and run the example app to make sure it still works and is generating the right types.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Contributing
 

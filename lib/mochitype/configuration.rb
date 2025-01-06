@@ -9,8 +9,8 @@ module Mochitype
 
     sig { void }
     def initialize
-      @watch_path = T.let("app/mochitypes/", String)  # default path for Sorbet files
-      @output_path = T.let("app/javascript/__generated__/mochitypes", String)  # default path for TypeScript output
+      @watch_path = T.let('app/mochitypes/', String) # default path for Sorbet files
+      @output_path = T.let('app/javascript/__generated__/mochitypes', String) # default path for TypeScript output
     end
   end
 
@@ -22,9 +22,10 @@ module Mochitype
       @configuration ||= Configuration.new
     end
 
-    sig { params(blk: T.proc.void).void }
+    sig { params(blk: T.proc.params(config: Configuration).void).void }
     def configure(&blk)
       yield(configuration)
+      Mochitype::FileWatcher.start
     end
   end
 end

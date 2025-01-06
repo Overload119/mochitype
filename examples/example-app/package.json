@@ -3,6 +3,12 @@
   "packageManager": "yarn@4.2.2",
   "devDependencies": {
     "@prettier/plugin-ruby": "4.0.4",
-    "prettier": "3.4.2"
+    "prettier": "3.4.2",
+    "@types/bun": "latest"
+  },
+  "module": "index.ts",
+  "type": "module",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
   }
 }
