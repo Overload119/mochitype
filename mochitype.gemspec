@@ -27,10 +27,9 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "rails", ">= 6.0"
   spec.add_dependency "listen", "~> 3.8"
-  spec.add_dependency "prism", "~> 0.17.1"
-  spec.add_dependency "sorbet-runtime", "~> 0.5.11094"
-  spec.add_development_dependency "sorbet", "~> 0.5.11094"
+  spec.add_dependency "sorbet-runtime", ">= 0.5"
 
+  spec.add_development_dependency "sorbet", ">= 0.5.11094"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "rspec-rails"
