@@ -8,18 +8,23 @@ module Mochitype
     class << self
       extend T::Sig
 
+      sig { params(in_filepath: String, out_filepath: String).void }
+      def write_converted_file(in_filepath:, out_filepath:)
+        File.write(out_filepath, new(in_filepath).build_typescript_file)
+      end
+
       sig { params(file_path: String).returns(T.nilable(String)) }
       def convert_file(file_path)
-        output_file = determine_output_path(file_path)
-        FileUtils.mkdir_p(File.dirname(output_file))
-        File.write(output_file, new(file_path).build_typescript_file)
-        output_file
+        output_filepath = determine_output_path(file_path)
+        FileUtils.mkdir_p(File.dirname(output_filepath))
+        write_converted_file(in_filepath: file_path, out_filepath: output_filepath)
+        output_filepath
       end
 
       sig { params(file_path: String).returns(String) }
       def determine_output_path(file_path)
         base_path =
-          if Rails.root
+          if defined?(Rails) && Rails.root
             Rails.root.join(Mochitype.configuration.output_path)
           else
             Mochitype.configuration.output_path

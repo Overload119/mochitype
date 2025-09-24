@@ -3,57 +3,122 @@
 
 module Mochitype
   class FileWatcher
-    extend T::Sig
+    class << self
+      extend T::Sig
 
-    sig { void }
-    def self.start
-      return unless Rails.env.development?
+      # Logger that works with or without Rails
+      sig { returns(T.untyped) }
+      def logger
+        defined?(Rails) && Rails.logger ? Rails.logger : Logger.new($stdout)
+      end
 
-      path =
-        (
-          if Rails.root
-            Rails.root.join(Mochitype.configuration.watch_path)
-          else
-            Mochitype.configuration.watch_path
+      # Performs a full sweep of the watched Ruby type directory and the generated TypeScript output directory.
+      #
+      # - For every Ruby file under the configured `watch_path`, determines the expected TypeScript output path.
+      # - Deletes any orphaned TypeScript files in the output directory that do not have a corresponding Ruby source file.
+      # - Generates TypeScript files for any Ruby files that are missing outputs.
+      #
+      # This method is typically called on Rails boot in development to ensure the generated TypeScript
+      # is in sync with the Ruby source files, and to clean up any stale outputs.
+      #
+      # Logs actions and errors using Rails.logger (or stdout in headless mode).
+      sig { void }
+      def sweep
+        begin
+          ts_base = Mochitype.configuration.output_path
+
+          # Build expected TS paths from all Ruby files.
+          ruby_files = Dir.glob("#{Mochitype.configuration.watch_path}/**/*.rb")
+          expected_ts = {}
+          ruby_files.each do |rb_file|
+            ts_path = TypeConverter.determine_output_path(rb_file)
+            expected_ts[ts_path] = rb_file
           end
-        )
-      FileUtils.mkdir_p(path) unless File.directory?(path)
 
-      Dir
-        .glob("#{path}/**/*.rb")
-        .each do |file|
-          begin
-            TypeConverter.convert_file(file)
-            Rails.logger.info "Mochitype: Successfully converted #{file} to TypeScript"
-          rescue => e
-            Rails.logger.error "Mochitype: Error converting #{file}: #{e.message}"
+          # Delete orphan TS files (those without a corresponding Ruby file).
+          Dir
+            .glob("#{ts_base}/**/*.ts")
+            .each do |ts_file|
+              begin
+                next if expected_ts.key?(ts_file)
+                File.delete(ts_file)
+                logger.info "Mochitype: Removed orphan TypeScript file #{ts_file}"
+              rescue => e
+                logger.error "Mochitype: Error removing orphan TypeScript file #{ts_file}: #{e.message}"
+              end
+            end
+
+          # Generate missing TS files for Ruby files without outputs.
+          ruby_files.each do |rb_file|
+            begin
+              ts_path = TypeConverter.determine_output_path(rb_file)
+              next if File.exist?(ts_path)
+              TypeConverter.convert_file(rb_file)
+              logger.info "Mochitype: Generated missing TypeScript for #{rb_file}"
+            rescue => e
+              logger.error "Mochitype: Error generating TypeScript for #{rb_file}: #{e.message}"
+            end
           end
+        rescue => e
+          logger.error "Mochitype: Initial sweep failed: #{e.message}"
         end
+      end
 
-      listener =
-        Listen.to(path, only: /\.rb$/) do |modified, added, removed|
-          (modified + added).each do |file|
+      sig { void }
+      def start
+        return unless Rails.env.development?
+
+        path =
+          (
+            if Rails.root
+              Rails.root.join(Mochitype.configuration.watch_path)
+            else
+              Mochitype.configuration.watch_path
+            end
+          )
+        FileUtils.mkdir_p(path) unless File.directory?(path)
+
+        Dir
+          .glob("#{path}/**/*.rb")
+          .each do |file|
             begin
               TypeConverter.convert_file(file)
-              Rails.logger.info "Mochitype: Successfully converted #{file} to TypeScript"
+              logger.info "Mochitype: Successfully converted #{file} to TypeScript"
             rescue => e
-              Rails.logger.error "Mochitype: Error converting #{file}: #{e.message}"
+              logger.error "Mochitype: Error converting #{file}: #{e.message}"
             end
           end
 
-          removed.each do |file|
-            begin
-              ts_file = TypeConverter.determine_output_path(file)
-              File.delete(ts_file) if File.exist?(ts_file)
-              Rails.logger.info "Mochitype: Removed TypeScript file for #{file}"
-            rescue => e
-              Rails.logger.error "Mochitype: Error removing TypeScript file for #{file}: #{e.message}"
+        listener =
+          Listen.to(path, only: /\.rb$/) do |modified, added, removed|
+            (modified + added).each do |file|
+              begin
+                TypeConverter.convert_file(file)
+                logger.info "Mochitype: Successfully converted #{file} to TypeScript"
+              rescue => e
+                logger.error "Mochitype: Error converting #{file}: #{e.message}"
+              end
+            end
+
+            removed.each do |file|
+              begin
+                ts_file = TypeConverter.determine_output_path(file)
+                File.delete(ts_file) if File.exist?(ts_file)
+                logger.info "Mochitype: Removed TypeScript file for #{file}"
+              rescue => e
+                logger.error "Mochitype: Error removing TypeScript file for #{file}: #{e.message}"
+              end
             end
           end
-        end
 
-      listener.start
-      Rails.logger.info "Mochitype: Watching for Sorbet struct changes in #{path}"
+        listener.start
+        Kernel.puts "Mochitype starting: Watching for Sorbet struct changes in #{path}"
+        Kernel.puts "* #{Dir.glob("#{path}/**/*.rb").count} file(s) in #{path}"
+        Kernel.puts "* #{Dir.glob("#{Mochitype.configuration.output_path}/**/*.ts").count} generated TS file(s) in #{Mochitype.configuration.output_path}"
+
+        # Initial sweep.
+        Thread.new { sweep }
+      end
     end
   end
 end

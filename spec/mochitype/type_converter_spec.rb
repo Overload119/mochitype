@@ -1,8 +1,10 @@
 require 'spec_helper'
 require 'pry'
 
-require_relative '../test-data/payload.rb'
-require_relative '../test-data/app.rb'
+# Require all Ruby files in the test data directory
+Dir
+  .glob('./spec/test-data/*.rb')
+  .each { |filepath| require_relative filepath.sub('./spec/', '../') }
 
 RSpec.describe Mochitype::TypeConverter do
   before { Rails.logger = Logger.new($stdout) }

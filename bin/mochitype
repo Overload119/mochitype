@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Add lib to load path so we can require mochitype
+lib_path = File.expand_path('../lib', __dir__)
+$LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
+require 'mochitype'
+
+input_file = ARGV[0]
+output_file = input_file.sub('.rb', '.ts')
+Mochitype::TypeConverter.write_converted_file(in_filepath: input_file, out_filepath: output_file)

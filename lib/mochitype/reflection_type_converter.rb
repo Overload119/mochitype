@@ -81,15 +81,17 @@ module Mochitype
     end
 
     # Computes the Typescript-property of a T::Struct.
+    # @param data A `const` or `prop` property definition from a T::Struct.
     sig { params(data: T::Hash[Symbol, T.untyped]).returns(ConvertibleProperty) }
     def write_prop(data)
       case data[:type].class.to_s
       when 'T::Types::TypedArray'
-        inner_type = data[:type].type.raw_type
-        value = simple_class_to_typescript(inner_type)
+        inner_type = data[:type].type
+        inner_type_convertible_property = instance_of_class_to_convertible_property(inner_type)
+
         ConvertibleProperty.new(
-          zod_definition: "z.array(#{value.zod_definition})",
-          discovered_classes: value.discovered_classes,
+          zod_definition: "z.array(#{inner_type_convertible_property.zod_definition})",
+          discovered_classes: inner_type_convertible_property.discovered_classes,
         )
       when 'T::Private::Types::SimplePairUnion'
         first_value = data[:type].types[0].raw_type
@@ -106,8 +108,15 @@ module Mochitype
           )
         end
       when 'T::Types::TypedHash'
+        key_type = data[:type].keys
+        value_type = data[:type].values
+
+        key_convertible_property = instance_of_class_to_convertible_property(key_type)
+        value_convertible_property = instance_of_class_to_convertible_property(value_type)
+
         ConvertibleProperty.new(
-          zod_definition: "z.record(#{data[:type].first}, #{data[:type].last})",
+          zod_definition:
+            "z.record(#{key_convertible_property.zod_definition}, #{value_convertible_property.zod_definition})",
           discovered_classes: [],
         )
       when 'T::Types::Union'
@@ -128,6 +137,27 @@ module Mochitype
         else
           simple_class_to_typescript(data[:type])
         end
+      end
+    end
+
+    sig { params(instance: T.untyped).returns(ConvertibleProperty) }
+    def instance_of_class_to_convertible_property(instance)
+      if instance.is_a?(T::Types::Simple)
+        simple_class_to_typescript(instance.raw_type)
+      elsif instance.is_a?(T::Types::TypedHash)
+        key_type = instance.keys
+        value_type = instance.values
+
+        key_convertible_property = instance_of_class_to_convertible_property(key_type)
+        value_convertible_property = instance_of_class_to_convertible_property(value_type)
+
+        ConvertibleProperty.new(
+          zod_definition:
+            "z.record(#{key_convertible_property.zod_definition}, #{value_convertible_property.zod_definition})",
+          discovered_classes: [],
+        )
+      else
+        ConvertibleProperty.new(zod_definition: 'z.unknown()')
       end
     end
 
