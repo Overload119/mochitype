@@ -17,4 +17,17 @@ class ConvertibleClass < T::Struct
     js_name = klass.to_s.gsub('::', '')
     klass < T::Enum ? "#{js_name}Enum" : "#{js_name}Schema"
   end
+
+  # The name of the TypeScript type alias
+  sig { returns(String) }
+  def typescript_type_name
+    js_name = klass.to_s.gsub('::', '')
+    # For very short class names (3 chars or less), use just the class name
+    # Otherwise, use T prefix + the typescript_name
+    if js_name.length <= 3
+      js_name
+    else
+      "T#{typescript_name}"
+    end
+  end
 end

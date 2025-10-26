@@ -5,7 +5,11 @@ module Mochitype
   class Configuration
     extend T::Sig
 
-    attr_accessor :watch_path, :output_path
+    sig { returns(String) }
+    attr_accessor :watch_path
+
+    sig { returns(String) }
+    attr_accessor :output_path
 
     sig { void }
     def initialize
@@ -25,6 +29,10 @@ module Mochitype
     sig { params(blk: T.proc.params(config: Configuration).void).void }
     def configure(&blk)
       yield(configuration)
+    end
+
+    sig { void }
+    def start_watcher!
       Mochitype::FileWatcher.start
     end
   end

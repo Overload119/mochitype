@@ -6,6 +6,8 @@ module Mochitype
     class << self
       extend T::Sig
 
+      attr_reader :listener, :mutex
+
       # Logger that works with or without Rails
       sig { returns(T.untyped) }
       def logger
@@ -67,6 +69,9 @@ module Mochitype
       sig { void }
       def start
         return unless Rails.env.development?
+        return if @listener # Already started
+
+        @mutex = Mutex.new
 
         path =
           (
@@ -78,46 +83,61 @@ module Mochitype
           )
         FileUtils.mkdir_p(path) unless File.directory?(path)
 
-        Dir
-          .glob("#{path}/**/*.rb")
-          .each do |file|
-            begin
-              TypeConverter.convert_file(file)
-              logger.info "Mochitype: Successfully converted #{file} to TypeScript"
-            rescue => e
-              logger.error "Mochitype: Error converting #{file}: #{e.message}"
-            end
-          end
-
-        listener =
-          Listen.to(path, only: /\.rb$/) do |modified, added, removed|
-            (modified + added).each do |file|
+        # Initial conversion of all existing files
+        @mutex.synchronize do
+          Dir
+            .glob("#{path}/**/*.rb")
+            .each do |file|
               begin
                 TypeConverter.convert_file(file)
                 logger.info "Mochitype: Successfully converted #{file} to TypeScript"
-              rescue => e
-                logger.error "Mochitype: Error converting #{file}: #{e.message}"
+              rescue StandardError => e
+                logger.error "Mochitype: Error converting #{file}"
+                logger.error "  #{e.class}: #{e.message}"
+                logger.error "  #{e.backtrace.first(3).join("\n  ")}" if e.backtrace
               end
             end
+        end
 
-            removed.each do |file|
-              begin
-                ts_file = TypeConverter.determine_output_path(file)
-                File.delete(ts_file) if File.exist?(ts_file)
-                logger.info "Mochitype: Removed TypeScript file for #{file}"
-              rescue => e
-                logger.error "Mochitype: Error removing TypeScript file for #{file}: #{e.message}"
-              end
+        @listener =
+          Listen.to(path, only: /\.rb$/) do |modified, added, removed|
+            @mutex.synchronize do
+              handle_file_changes(modified, added, removed)
             end
           end
 
-        listener.start
+        @listener.start
         Kernel.puts "Mochitype starting: Watching for Sorbet struct changes in #{path}"
         Kernel.puts "* #{Dir.glob("#{path}/**/*.rb").count} file(s) in #{path}"
         Kernel.puts "* #{Dir.glob("#{Mochitype.configuration.output_path}/**/*.ts").count} generated TS file(s) in #{Mochitype.configuration.output_path}"
 
-        # Initial sweep.
-        Thread.new { sweep }
+        # Run sweep synchronously after initial conversion
+        @mutex.synchronize { sweep }
+      end
+
+      sig { params(modified: T::Array[String], added: T::Array[String], removed: T::Array[String]).void }
+      def handle_file_changes(modified, added, removed)
+        (modified + added).each do |file|
+          begin
+            TypeConverter.convert_file(file)
+            logger.info "Mochitype: Successfully converted #{file} to TypeScript"
+          rescue StandardError => e
+            logger.error "Mochitype: Error converting #{file}"
+            logger.error "  #{e.class}: #{e.message}"
+            logger.error "  #{e.backtrace.first(3).join("\n  ")}" if e.backtrace
+          end
+        end
+
+        removed.each do |file|
+          begin
+            ts_file = TypeConverter.determine_output_path(file)
+            File.delete(ts_file) if File.exist?(ts_file)
+            logger.info "Mochitype: Removed TypeScript file for #{file}"
+          rescue StandardError => e
+            logger.error "Mochitype: Error removing TypeScript file for #{file}"
+            logger.error "  #{e.class}: #{e.message}"
+          end
+        end
       end
     end
   end

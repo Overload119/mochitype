@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Driver script to start the example Rails application
+# Usage: bin/example-server [options]
+# Options are passed directly to rails server
+
+require 'fileutils'
+require 'shellwords'
+
+# Path to the example app
+EXAMPLE_APP_PATH = File.expand_path('../examples/example-app', __dir__)
+
+# Check if the example app exists
+unless File.directory?(EXAMPLE_APP_PATH)
+  puts "Error: Example app not found at #{EXAMPLE_APP_PATH}"
+  exit 1
+end
+
+# Display helpful information
+puts "=" * 80
+puts "Mochitype Example Server"
+puts "=" * 80
+puts "Starting Rails server for the example application..."
+puts "Location: #{EXAMPLE_APP_PATH}"
+puts
+
+# Check if bundle is installed
+unless File.exist?(File.join(EXAMPLE_APP_PATH, 'Gemfile.lock'))
+  puts "⚠️  Gemfile.lock not found. You may need to run 'bundle install' first."
+  puts
+  print "Would you like to run 'bundle install' now? (y/n): "
+  response = $stdin.gets.chomp.downcase
+  
+  if response == 'y' || response == 'yes'
+    puts "\nRunning bundle install..."
+    Dir.chdir(EXAMPLE_APP_PATH) do
+      system('bundle install') || exit(1)
+    end
+    puts
+  else
+    puts "\nSkipping bundle install. The server may not start correctly."
+    puts
+  end
+end
+
+# Collect any command-line arguments to pass to rails server
+server_args = ARGV.join(' ')
+
+puts "Starting server with options: #{server_args.empty? ? '(default)' : server_args}"
+puts
+puts "Mochitype file watcher will automatically:"
+puts "  • Convert Ruby T::Struct files to TypeScript Zod schemas"
+puts "  • Watch: app/mochitypes/mochitypes/**/*.rb"
+puts "  • Output: app/assets/javascript/__generated__/mochitypes/**/*.ts"
+puts
+puts "=" * 80
+puts
+
+# Change to the example app directory and start the server
+Dir.chdir(EXAMPLE_APP_PATH) do
+  # Use exec to replace the current process with rails server
+  # This ensures proper signal handling (Ctrl-C, etc.)
+  exec("bin/rails server #{server_args}")
+end

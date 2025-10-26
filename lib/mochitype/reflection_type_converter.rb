@@ -69,13 +69,19 @@ module Mochitype
         raise NotImplementedError, "Unknown type: #{convertible_class.klass}"
       end
 
-      buffer << "export type T#{convertible_class.typescript_name} = z.infer<typeof #{convertible_class.typescript_name}>;\n\n"
+      buffer << "export type #{convertible_class.typescript_type_name} = z.infer<typeof #{convertible_class.typescript_name}>;\n\n"
       buffer
     end
 
     sig { returns(ConvertibleClass) }
     def root_convertible_class
-      klass = T.cast(extract_main_klass.constantize, T.class_of(T::Struct))
+      klass_name = extract_main_klass
+      klass = klass_name.constantize
+      
+      # Accept both T::Struct and T::Enum
+      unless (klass.is_a?(Class) && (klass < T::Struct || klass < T::Enum))
+        raise TypeError, "Expected T::Struct or T::Enum, got #{klass}"
+      end
 
       ConvertibleClass.new(klass: klass)
     end
@@ -84,8 +90,25 @@ module Mochitype
     # @param data A `const` or `prop` property definition from a T::Struct.
     sig { params(data: T::Hash[Symbol, T.untyped]).returns(ConvertibleProperty) }
     def write_prop(data)
-      case data[:type].class.to_s
-      when 'T::Types::TypedArray'
+      is_nilable = data[:_tnilable]
+      
+      result = case data[:type].class.to_s
+      # Handle special Sorbet types that should map to z.unknown()
+      when 'T::Types::Untyped'
+        ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::Intersection'
+        # T.all - intersection types are not representable in Zod
+        ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::ClassOf'
+        # T.class_of - represents a class itself, not an instance
+        ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::AttachedClass'
+        # T.attached_class - used in module mixins
+        ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::NoReturn'
+        # T.noreturn - function never returns
+        ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::TypedArray', 'T::Types::TypedArray::Untyped'
         inner_type = data[:type].type
         inner_type_convertible_property = instance_of_class_to_convertible_property(inner_type)
 
@@ -131,19 +154,46 @@ module Mochitype
           discovered_classes: discovered_classes,
         )
       else
-        if data[:_tnilable]
-          value = simple_class_to_typescript(data[:type])
-          ConvertibleProperty.new(zod_definition: "#{value.zod_definition}.nullable()")
-        else
-          simple_class_to_typescript(data[:type])
-        end
+        simple_class_to_typescript(data[:type])
+      end
+
+      # Add .nullable() if the type is nilable
+      if is_nilable
+        ConvertibleProperty.new(
+          zod_definition: "#{result.zod_definition}.nullable()",
+          discovered_classes: result.discovered_classes
+        )
+      else
+        result
       end
     end
 
     sig { params(instance: T.untyped).returns(ConvertibleProperty) }
     def instance_of_class_to_convertible_property(instance)
+      # Handle special Sorbet types
+      case instance.class.to_s
+      when 'T::Types::Untyped'
+        return ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::Intersection'
+        return ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::ClassOf'
+        return ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::AttachedClass'
+        return ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      when 'T::Types::NoReturn'
+        return ConvertibleProperty.new(zod_definition: 'z.unknown()', discovered_classes: [])
+      end
+
       if instance.is_a?(T::Types::Simple)
         simple_class_to_typescript(instance.raw_type)
+      elsif instance.is_a?(T::Types::TypedArray)
+        inner_type = instance.type
+        inner_type_convertible_property = instance_of_class_to_convertible_property(inner_type)
+
+        ConvertibleProperty.new(
+          zod_definition: "z.array(#{inner_type_convertible_property.zod_definition})",
+          discovered_classes: inner_type_convertible_property.discovered_classes,
+        )
       elsif instance.is_a?(T::Types::TypedHash)
         key_type = instance.keys
         value_type = instance.values
@@ -156,6 +206,20 @@ module Mochitype
             "z.record(#{key_convertible_property.zod_definition}, #{value_convertible_property.zod_definition})",
           discovered_classes: [],
         )
+      elsif instance.is_a?(T::Types::Union)
+        union_types = instance.types.map(&:raw_type)
+        if union_types.to_set == [TrueClass, FalseClass].to_set
+          ConvertibleProperty.new(zod_definition: 'z.boolean()', discovered_classes: [])
+        else
+          properties = union_types.map { |union_type| simple_class_to_typescript(union_type) }
+          values = properties.map(&:zod_definition)
+          discovered_classes = properties.flat_map(&:discovered_classes).uniq
+
+          ConvertibleProperty.new(
+            zod_definition: "z.union([#{values.join(', ')}])",
+            discovered_classes: discovered_classes,
+          )
+        end
       else
         ConvertibleProperty.new(zod_definition: 'z.unknown()')
       end
@@ -163,21 +227,26 @@ module Mochitype
 
     sig { params(klass: T.untyped).returns(ConvertibleProperty) }
     def simple_class_to_typescript(klass)
-      case
-      when klass < T::Struct
-        inner_klass = ConvertibleClass.new(klass: klass)
-        ConvertibleProperty.new(
-          zod_definition: inner_klass.typescript_name,
-          discovered_classes: [klass],
-        )
-      when klass < T::Enum
-        inner_klass = ConvertibleClass.new(klass: klass)
-        ConvertibleProperty.new(
-          zod_definition: inner_klass.typescript_name,
-          discovered_classes: [klass],
-        )
-      when SORBET_TYPESCRIPT_MAPPING.key?(klass)
-        ConvertibleProperty.new(zod_definition: SORBET_TYPESCRIPT_MAPPING[klass])
+      # Check if klass is a Class first, since < operator only works on classes
+      if klass.is_a?(Class)
+        case
+        when klass < T::Struct
+          inner_klass = ConvertibleClass.new(klass: klass)
+          ConvertibleProperty.new(
+            zod_definition: inner_klass.typescript_name,
+            discovered_classes: [klass],
+          )
+        when klass < T::Enum
+          inner_klass = ConvertibleClass.new(klass: klass)
+          ConvertibleProperty.new(
+            zod_definition: inner_klass.typescript_name,
+            discovered_classes: [klass],
+          )
+        when SORBET_TYPESCRIPT_MAPPING.key?(klass)
+          ConvertibleProperty.new(zod_definition: SORBET_TYPESCRIPT_MAPPING[klass])
+        else
+          ConvertibleProperty.new(zod_definition: 'z.unknown()')
+        end
       else
         ConvertibleProperty.new(zod_definition: 'z.unknown()')
       end
@@ -189,27 +258,35 @@ module Mochitype
     def extract_main_klass
       ast = Prism.parse(File.read(@file_path))
 
-      class_name = T.let(nil, T.nilable(String))
+      struct_class_name = T.let(nil, T.nilable(String))
+      enum_class_name = T.let(nil, T.nilable(String))
       nodes_to_visit = ast.value.statements.body.dup
       module_names = []
 
-      # Traverse until we find the first class that's a T::Struct
+      # Traverse and find classes - prefer T::Struct over T::Enum
       while node = nodes_to_visit.shift
         if node.is_a?(Prism::ModuleNode)
           module_names << node.name.to_s
         elsif node.is_a?(Prism::ClassNode)
           parent = node.superclass
 
-          if parent.is_a?(Prism::ConstantPathNode) &&
-               (parent.full_name == 'T::Struct' || parent.full_name == 'T::Enum')
-            class_name = node.name.to_s
-            break
+          if parent.is_a?(Prism::ConstantPathNode)
+            if parent.full_name == 'T::Struct'
+              struct_class_name = node.name.to_s
+              # Found a struct, stop searching since structs are preferred
+              break
+            elsif parent.full_name == 'T::Enum'
+              # Keep track of enum but continue searching for a struct
+              enum_class_name ||= node.name.to_s
+            end
           end
         end
 
         nodes_to_visit.concat(node.child_nodes.compact)
       end
 
+      # Prefer struct over enum
+      class_name = struct_class_name || enum_class_name
       [*module_names, T.must(class_name)].compact.join('::')
     end
   end
