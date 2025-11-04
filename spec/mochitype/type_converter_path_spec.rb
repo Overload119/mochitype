@@ -86,7 +86,7 @@ RSpec.describe Mochitype::TypeConverter do
     before do
       Mochitype.instance_variable_set(:@configuration, nil)
       allow(Mochitype::FileWatcher).to receive(:start)
-      
+
       Mochitype.configure do |config|
         config.watch_path = 'spec/test-data'
         config.output_path = tmpdir
@@ -126,7 +126,7 @@ RSpec.describe Mochitype::TypeConverter do
     it 'generates valid TypeScript content' do
       output_path = described_class.convert_file(test_file)
       content = File.read(output_path)
-      
+
       expect(content).to include("import { z } from 'zod'")
       expect(content).to include('export const')
       expect(content).to include('export type')
@@ -159,10 +159,10 @@ RSpec.describe Mochitype::TypeConverter do
         in_filepath: test_file,
         out_filepath: output_file
       )
-      
+
       content = File.read(output_file)
-      expect(content).to match(/export const \w+Schema = z\.object/)
-        expect(content).to match(/export type (T)?\w+(Schema|Enum)? = z\.infer/)
+      expect(content).to match(/export const \w+ = z\.object/)
+      expect(content).to match(/export type (T)?\w+ = z\.infer/)
     end
   end
 end

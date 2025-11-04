@@ -4,11 +4,11 @@
 
 import { z } from 'zod';
 
-export const ApiV1ResponsesUserProfileSchema = z.object({
+export const UserProfile = z.object({
   id: z.number(),
   username: z.string(),
   email: z.string(),
   verified: z.boolean()
 });
 
-export type TApiV1ResponsesUserProfileSchema = z.infer<typeof ApiV1ResponsesUserProfileSchema>;
+export type TUserProfile = z.infer<typeof UserProfile>;

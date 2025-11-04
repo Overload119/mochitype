@@ -10,12 +10,16 @@ class ConvertibleClass < T::Struct
   prop :props, T::Hash[String, String], default: {}
   prop :inner_classes, T::Array[ConvertibleClass], default: []
 
+  # Currently not used.
+  TS_TYPE_SUFFIX = ''
+  TS_ENUM_SUFFIX = ''
+
   # The name of the type in the generated Typescript file.
   # This is the name of the Zod definition.
   sig { returns(String) }
   def typescript_name
-    js_name = klass.to_s.gsub('::', '')
-    klass < T::Enum ? "#{js_name}Enum" : "#{js_name}Schema"
+    js_name = klass.name.demodulize
+    klass < T::Enum ? "#{js_name}#{TS_ENUM_SUFFIX}" : "#{js_name}#{TS_TYPE_SUFFIX}"
   end
 
   # The name of the TypeScript type alias

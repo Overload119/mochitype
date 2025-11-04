@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-export const SpecialTypesSchema = z.object({
+export const SpecialTypes = z.object({
   untyped_field: z.unknown(),
   any_field: z.union([z.string(),z.number(),z.number(),z.unknown()]),
   all_field: z.unknown(),
@@ -13,4 +13,4 @@ export const SpecialTypesSchema = z.object({
   normal_field: z.string()
 });
 
-export type TSpecialTypesSchema = z.infer<typeof SpecialTypesSchema>;
+export type TSpecialTypes = z.infer<typeof SpecialTypes>;

@@ -23,33 +23,33 @@ end
 RSpec.describe ConvertibleClass do
   describe '#typescript_name' do
     context 'with T::Struct classes' do
-      it 'appends Schema to the class name' do
+      it 'uses the demodulized class name without suffix' do
         convertible = described_class.new(klass: TestStruct)
-        expect(convertible.typescript_name).to eq('TestStructSchema')
+        expect(convertible.typescript_name).to eq('TestStruct')
       end
 
-      it 'removes namespace separators' do
+      it 'removes namespace prefixes (demodulizes)' do
         convertible = described_class.new(klass: NamespaceTest::NestedStruct)
-        expect(convertible.typescript_name).to eq('NamespaceTestNestedStructSchema')
+        expect(convertible.typescript_name).to eq('NestedStruct')
       end
     end
 
     context 'with T::Enum classes' do
-      it 'appends Enum to the class name' do
+      it 'uses the demodulized class name without suffix' do
         convertible = described_class.new(klass: TestEnum)
-        expect(convertible.typescript_name).to eq('TestEnumEnum')
+        expect(convertible.typescript_name).to eq('TestEnum')
       end
     end
 
     context 'with deeply nested classes' do
-      it 'flattens all namespace separators' do
+      it 'uses only the demodulized class name' do
         # Using the existing test data
-        Dir.glob('./spec/test-data/*.rb').each { |filepath| 
-          require_relative filepath.sub('./spec/', '../') 
+        Dir.glob('./spec/test-data/*.rb').each { |filepath|
+          require_relative filepath.sub('./spec/', '../')
         }
-        
+
         convertible = described_class.new(klass: Payload::Result)
-        expect(convertible.typescript_name).to eq('PayloadResultSchema')
+        expect(convertible.typescript_name).to eq('Result')
       end
     end
   end
@@ -101,7 +101,7 @@ RSpec.describe ConvertibleClass do
       parent = described_class.new(klass: TestStruct)
       child1 = described_class.new(klass: TestEnum)
       child2 = described_class.new(klass: NamespaceTest::NestedStruct)
-      
+
       parent.inner_classes = [child1, child2]
       expect(parent.inner_classes.length).to eq(2)
     end

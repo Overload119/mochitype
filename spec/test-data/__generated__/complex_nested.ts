@@ -4,44 +4,44 @@
 
 import { z } from 'zod';
 
-export const ApiV1ComplexNestedUserStatusEnum = z.enum(['active', 'inactive', 'suspended', 'pending']);
+export const UserStatus = z.enum(['active', 'inactive', 'suspended', 'pending']);
 
-export type TApiV1ComplexNestedUserStatusEnum = z.infer<typeof ApiV1ComplexNestedUserStatusEnum>;
+export type TUserStatus = z.infer<typeof UserStatus>;
 
-export const ApiV1ComplexNestedAddressSchema = z.object({
+export const Address = z.object({
   street: z.string(),
   city: z.string(),
   zip_code: z.string(),
   country: z.string()
 });
 
-export type TApiV1ComplexNestedAddressSchema = z.infer<typeof ApiV1ComplexNestedAddressSchema>;
+export type TAddress = z.infer<typeof Address>;
 
-export const ApiV1ComplexNestedContactInfoSchema = z.object({
+export const ContactInfo = z.object({
   email: z.string(),
   phone: z.string().nullable(),
-  address: ApiV1ComplexNestedAddressSchema
+  address: Address
 });
 
-export type TApiV1ComplexNestedContactInfoSchema = z.infer<typeof ApiV1ComplexNestedContactInfoSchema>;
+export type TContactInfo = z.infer<typeof ContactInfo>;
 
-export const ApiV1ComplexNestedMetadataSchema = z.object({
+export const Metadata = z.object({
   tags: z.array(z.string()),
   scores: z.record(z.string(), z.number()),
   created_at: z.string(),
   updated_at: z.string().nullable()
 });
 
-export type TApiV1ComplexNestedMetadataSchema = z.infer<typeof ApiV1ComplexNestedMetadataSchema>;
+export type TMetadata = z.infer<typeof Metadata>;
 
-export const ApiV1ComplexNestedSchema = z.object({
+export const ComplexNested = z.object({
   id: z.number(),
   name: z.string(),
-  status: ApiV1ComplexNestedUserStatusEnum,
-  contact_info: ApiV1ComplexNestedContactInfoSchema,
-  metadata: ApiV1ComplexNestedMetadataSchema,
+  status: UserStatus,
+  contact_info: ContactInfo,
+  metadata: Metadata,
   roles: z.array(z.string()),
   is_verified: z.boolean()
 });
 
-export type TApiV1ComplexNestedSchema = z.infer<typeof ApiV1ComplexNestedSchema>;
+export type TComplexNested = z.infer<typeof ComplexNested>;

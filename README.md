@@ -1,13 +1,10 @@
-> [!WARNING]
-> WIP! You cannot use this gem yet.
-
 # Mochitype
 
-For Ruby on Rails apps that have a Typescript frontend, there's no good way to make sure that the backend is sending a payload that the frontend understands.
+For Ruby on Rails apps that have a Typescript frontend, your left with few options to ensure your Typescript types are correct.
 
 You either manually create Typescript interfaces or manually write Zod for runtime checks.
 
-Mochitype turns your T::Struct classes into Zod types, allowing your frontend and backend to share a common type definition. This gives you:
+Mochitype turns your `T::Struct` classes into Zod types, allowing your frontend and backend to share a common type definition. This gives you:
 
 - Typescript interfaces in sync with the backend with Zod infer.
 - Runtime type checking with Zod.
@@ -38,6 +35,7 @@ Mochitype.configure do |config|
   config.watch_path = "app/mochitypes"
   config.output_path = "app/javascript/__generated__/mochitypes"
 end
+Mochitype.start_watcher!
 ```
 
 2. When your Rails app starts in development, it'll watch all files in `watch_path` - each time a file is added, modified, or deleted, it'll update the corresponding TypeScript file in `output_path`.
@@ -125,12 +123,8 @@ Then use it directly in your controllers:
 class UsersController < ApplicationController
   def show
     user = User.find(params[:id])
-    response = UserResponse.new(
-      id: user.id,
-      name: user.name,
-      email: user.email
-    )
-    
+    response = UserResponse.new(id: user.id, name: user.name, email: user.email)
+
     render response
   end
 end
@@ -157,15 +151,12 @@ module API
       sig { params(users: T::Array[User], page: Integer).returns(IndexResponse) }
       def self.from_users(users:, page:)
         new(
-          users: users.map do |user|
-            UserSummary.new(
-              id: user.id,
-              name: user.name,
-              avatar_url: user.avatar_url
-            )
-          end,
+          users:
+            users.map do |user|
+              UserSummary.new(id: user.id, name: user.name, avatar_url: user.avatar_url)
+            end,
           total_count: users.size,
-          page: page
+          page: page,
         )
       end
     end
@@ -176,10 +167,7 @@ end
 class API::UsersController < ApplicationController
   def index
     users = User.page(params[:page])
-    render API::Users::IndexResponse.from_users(
-      users: users,
-      page: params[:page].to_i
-    )
+    render API::Users::IndexResponse.from_users(users: users, page: params[:page].to_i)
   end
 end
 ```
@@ -197,13 +185,13 @@ For the examples above, Mochitype will automatically generate TypeScript types l
 
 ```typescript
 // __generated__/mochitypes/user_response.ts
-export const UserResponseSchema = z.object({
+export const UserResponse = z.object({
   id: z.number(),
   name: z.string(),
   email: z.string(),
 });
 
-export type TUserResponseSchema = z.infer<typeof UserResponseSchema>;
+export type TUserResponse = z.infer<typeof UserResponse>;
 ```
 
 This keeps your frontend types perfectly in sync with your backend responses!

@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-export const UnionTypesSchema = z.object({
+export const UnionTypes = z.object({
   string_or_number: z.union([z.string(), z.number()]),
   multiple_types: z.union([z.string(),z.number(),z.number()]),
   boolean_value: z.boolean(),
@@ -13,4 +13,4 @@ export const UnionTypesSchema = z.object({
   array_of_strings_or_numbers: z.array(z.union([z.string(), z.number()]))
 });
 
-export type TUnionTypesSchema = z.infer<typeof UnionTypesSchema>;
+export type TUnionTypes = z.infer<typeof UnionTypes>;

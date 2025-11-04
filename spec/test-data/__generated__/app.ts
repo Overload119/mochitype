@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-export const AppSchema = z.object({
+export const App = z.object({
   string_vaue: z.string().nullable(),
   integer_value: z.number().nullable(),
   boolean_value: z.boolean().nullable(),
@@ -12,4 +12,4 @@ export const AppSchema = z.object({
   hash_value: z.record(z.string(), z.unknown()).nullable()
 });
 
-export type App = z.infer<typeof AppSchema>;
+export type App = z.infer<typeof App>;

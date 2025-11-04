@@ -4,6 +4,6 @@
 
 import { z } from 'zod';
 
-export const SimpleEnumEnum = z.enum(['red', 'green', 'blue']);
+export const SimpleEnum = z.enum(['red', 'green', 'blue']);
 
-export type TSimpleEnumEnum = z.infer<typeof SimpleEnumEnum>;
+export type TSimpleEnum = z.infer<typeof SimpleEnum>;

@@ -4,19 +4,19 @@
 
 import { z } from 'zod';
 
-export const SearchResultMatchSchema = z.object({
+export const Match = z.object({
   score: z.number(),
   highlight: z.string()
 });
 
-export type TSearchResultMatchSchema = z.infer<typeof SearchResultMatchSchema>;
+export type TMatch = z.infer<typeof Match>;
 
-export const SearchResultSchema = z.object({
+export const SearchResult = z.object({
   result_id: z.union([z.string(), z.number()]),
   title: z.string(),
-  match_info: SearchResultMatchSchema.nullable(),
+  match_info: Match.nullable(),
   tags: z.array(z.string()),
   category: z.union([z.string(),z.number(),z.number()])
 });
 
-export type TSearchResultSchema = z.infer<typeof SearchResultSchema>;
+export type TSearchResult = z.infer<typeof SearchResult>;

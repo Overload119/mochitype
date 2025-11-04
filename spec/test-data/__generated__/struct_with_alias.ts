@@ -4,10 +4,10 @@
 
 import { z } from 'zod';
 
-export const StructWithAliasSchema = z.object({
+export const StructWithAlias = z.object({
   string_key_hash: z.record(z.string(), z.unknown()),
   string_key_array: z.array(z.string()),
   string_key_hash_array: z.array(z.record(z.string(), z.unknown()))
 });
 
-export type TStructWithAliasSchema = z.infer<typeof StructWithAliasSchema>;
+export type TStructWithAlias = z.infer<typeof StructWithAlias>;

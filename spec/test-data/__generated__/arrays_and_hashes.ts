@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 
-export const ArraysAndHashesSchema = z.object({
+export const ArraysAndHashes = z.object({
   simple_array: z.array(z.string()),
   number_array: z.array(z.number()),
   nested_array: z.array(z.array(z.string())),
@@ -14,4 +14,4 @@ export const ArraysAndHashesSchema = z.object({
   complex_hash: z.record(z.string(), z.array(z.number()))
 });
 
-export type TArraysAndHashesSchema = z.infer<typeof ArraysAndHashesSchema>;
+export type TArraysAndHashes = z.infer<typeof ArraysAndHashes>;

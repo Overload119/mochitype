@@ -4,21 +4,21 @@
 
 import { z } from 'zod';
 
-export const PayloadResultResultTypeEnum = z.enum(['animal', 'plant', 'human']);
+export const ResultType = z.enum(['animal', 'plant', 'human']);
 
-export type TPayloadResultResultTypeEnum = z.infer<typeof PayloadResultResultTypeEnum>;
+export type TResultType = z.infer<typeof ResultType>;
 
-export const PayloadResultSchema = z.object({
+export const Result = z.object({
   id: z.union([z.string(), z.number()]),
   name: z.string().nullable(),
-  result_type: PayloadResultResultTypeEnum
+  result_type: ResultType
 });
 
-export type TPayloadResultSchema = z.infer<typeof PayloadResultSchema>;
+export type TResult = z.infer<typeof Result>;
 
-export const PayloadSchema = z.object({
-  results: z.array(PayloadResultSchema),
+export const Payload = z.object({
+  results: z.array(Result),
   is_success: z.boolean()
 });
 
-export type TPayloadSchema = z.infer<typeof PayloadSchema>;
+export type TPayload = z.infer<typeof Payload>;

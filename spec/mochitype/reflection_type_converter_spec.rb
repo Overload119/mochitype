@@ -3,7 +3,9 @@
 require 'spec_helper'
 
 # Load test data
-Dir.glob('./spec/test-data/*.rb').each { |filepath| require_relative filepath.sub('./spec/', '../') }
+Dir
+  .glob('./spec/test-data/*.rb')
+  .each { |filepath| require_relative filepath.sub('./spec/', '../') }
 
 RSpec.describe Mochitype::ReflectionTypeConverter do
   let(:app_filepath) { './spec/test-data/app.rb' }
@@ -48,7 +50,7 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       converter = described_class.new(app_filepath)
       output = converter.build_typescript_file
 
-      expect(output).to include('export const AppSchema')
+      expect(output).to include('export const App')
     end
 
     it 'exports a type definition' do
@@ -101,13 +103,13 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
 
     it 'converts T::Struct to schema reference' do
       result = converter.simple_class_to_typescript(Payload::Result)
-      expect(result.zod_definition).to eq('PayloadResultSchema')
+      expect(result.zod_definition).to eq('Result')
       expect(result.discovered_classes).to include(Payload::Result)
     end
 
     it 'converts T::Enum to enum reference' do
       result = converter.simple_class_to_typescript(Payload::Result::ResultType)
-      expect(result.zod_definition).to eq('PayloadResultResultTypeEnum')
+      expect(result.zod_definition).to eq('ResultType')
       expect(result.discovered_classes).to include(Payload::Result::ResultType)
     end
   end
@@ -118,7 +120,7 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       convertible = ConvertibleClass.new(klass: Payload::Result::ResultType)
       output = converter.convertible_class_to_typescript(convertible)
 
-      expect(output).to include('export const PayloadResultResultTypeEnum = z.enum')
+      expect(output).to include('export const ResultType = z.enum')
       expect(output).to include("'animal'")
       expect(output).to include("'plant'")
       expect(output).to include("'human'")
@@ -129,7 +131,7 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       convertible = ConvertibleClass.new(klass: App)
       output = converter.convertible_class_to_typescript(convertible)
 
-      expect(output).to include('export const AppSchema = z.object')
+      expect(output).to include('export const App = z.object')
     end
 
     it 'hoists inner classes before parent' do
@@ -137,12 +139,35 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       output = converter.build_typescript_file
 
       # Enum should come before Result, Result before Payload
-      enum_pos = output.index('PayloadResultResultTypeEnum')
-      result_pos = output.index('PayloadResultSchema')
-      payload_pos = output.index('PayloadSchema')
+      enum_pos = output.index('export const ResultType = z.enum')
+      result_pos = output.index('export const Result = z.object')
+      payload_pos = output.index('export const Payload = z.object')
 
       expect(enum_pos).to be < result_pos
       expect(result_pos).to be < payload_pos
+    end
+
+    it 'does not duplicate inner classes when referenced multiple times' do
+      filepath = './spec/test-data/duplicate_nested_classes.rb'
+      converter = described_class.new(filepath)
+      output = converter.build_typescript_file
+
+      # Count how many times UrlImageHash appears as an export
+      url_image_hash_count = output.scan(/export const UrlImageHash = z\.object/).length
+      expect(url_image_hash_count).to eq(1),
+      "Expected UrlImageHash to be exported once, but found #{url_image_hash_count} times"
+
+      # Count how many times ApplicationResearchArea appears as an export
+      research_area_count = output.scan(/export const ApplicationResearchArea = z\.object/).length
+      expect(research_area_count).to eq(1),
+      "Expected ApplicationResearchArea to be exported once, but found #{research_area_count} times"
+
+      # Verify the main class still references them correctly
+      expect(output).to include('logo: UrlImageHash')
+      expect(output).to include('banner_video: UrlImageHash')
+      expect(output).to include('banner_image: UrlImageHash')
+      expect(output).to include('research_areas: z.array(ApplicationResearchArea)')
+      expect(output).to include('more_research_areas: z.array(ApplicationResearchArea)')
     end
   end
 
@@ -173,27 +198,29 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       it 'handles arrays of custom types' do
         data = { type: T::Types::TypedArray.new(Payload::Result) }
         result = converter.write_prop(data)
-        expect(result.zod_definition).to eq('z.array(PayloadResultSchema)')
+        expect(result.zod_definition).to eq('z.array(Result)')
         expect(result.discovered_classes).to include(Payload::Result)
       end
     end
 
     context 'with unions' do
       it 'handles boolean unions (TrueClass | FalseClass)' do
-        union_type = T::Private::Types::SimplePairUnion.new(
-          T::Types::Simple.new(TrueClass),
-          T::Types::Simple.new(FalseClass)
-        )
+        union_type =
+          T::Private::Types::SimplePairUnion.new(
+            T::Types::Simple.new(TrueClass),
+            T::Types::Simple.new(FalseClass),
+          )
         data = { type: union_type }
         result = converter.write_prop(data)
         expect(result.zod_definition).to eq('z.boolean()')
       end
 
       it 'handles string | integer unions' do
-        union_type = T::Private::Types::SimplePairUnion.new(
-          T::Types::Simple.new(String),
-          T::Types::Simple.new(Integer)
-        )
+        union_type =
+          T::Private::Types::SimplePairUnion.new(
+            T::Types::Simple.new(String),
+            T::Types::Simple.new(Integer),
+          )
         data = { type: union_type }
         result = converter.write_prop(data)
         expect(result.zod_definition).to eq('z.union([z.string(), z.number()])')
@@ -202,10 +229,8 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
 
     context 'with typed hashes' do
       it 'handles T::Hash[String, T.untyped]' do
-        hash_type = T::Types::TypedHash.new(
-          keys: T::Types::Simple.new(String),
-          values: T::Types::Untyped.new
-        )
+        hash_type =
+          T::Types::TypedHash.new(keys: T::Types::Simple.new(String), values: T::Types::Untyped.new)
         data = { type: hash_type }
         result = converter.write_prop(data)
         expect(result.zod_definition).to eq('z.record(z.string(), z.unknown())')
@@ -221,12 +246,15 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       end
 
       it 'handles T.any (multi-type union)' do
-        union_type = T::Types::Union.new([
-          T::Types::Simple.new(String),
-          T::Types::Simple.new(Integer),
-          T::Types::Simple.new(Float),
-          T::Types::Simple.new(Symbol)
-        ])
+        union_type =
+          T::Types::Union.new(
+            [
+              T::Types::Simple.new(String),
+              T::Types::Simple.new(Integer),
+              T::Types::Simple.new(Float),
+              T::Types::Simple.new(Symbol),
+            ],
+          )
         data = { type: union_type }
         result = converter.write_prop(data)
         # Should produce a union of the known types
@@ -234,10 +262,10 @@ RSpec.describe Mochitype::ReflectionTypeConverter do
       end
 
       it 'handles T.all (intersection type)' do
-        intersection_type = T::Types::Intersection.new([
-          T::Types::Simple.new(T::Struct),
-          T::Types::Simple.new(Kernel)
-        ])
+        intersection_type =
+          T::Types::Intersection.new(
+            [T::Types::Simple.new(T::Struct), T::Types::Simple.new(Kernel)],
+          )
         data = { type: intersection_type }
         result = converter.write_prop(data)
         expect(result.zod_definition).to eq('z.unknown()')

@@ -4,20 +4,20 @@
 
 import { z } from 'zod';
 
-export const OrderStatusEnum = z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled']);
+export const OrderStatus = z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled']);
 
-export type TOrderStatusEnum = z.infer<typeof OrderStatusEnum>;
+export type TOrderStatus = z.infer<typeof OrderStatus>;
 
-export const OrderResponsePriorityEnum = z.enum(['low', 'medium', 'high', 'urgent']);
+export const Priority = z.enum(['low', 'medium', 'high', 'urgent']);
 
-export type TOrderResponsePriorityEnum = z.infer<typeof OrderResponsePriorityEnum>;
+export type TPriority = z.infer<typeof Priority>;
 
-export const OrderResponseSchema = z.object({
+export const OrderResponse = z.object({
   id: z.string(),
-  status: OrderStatusEnum,
-  priority: OrderResponsePriorityEnum,
+  status: OrderStatus,
+  priority: Priority,
   amount: z.number(),
   metadata: z.record(z.string(), z.string())
 });
 
-export type TOrderResponseSchema = z.infer<typeof OrderResponseSchema>;
+export type TOrderResponse = z.infer<typeof OrderResponse>;

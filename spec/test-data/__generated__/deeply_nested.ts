@@ -4,32 +4,32 @@
 
 import { z } from 'zod';
 
-export const OrganizationDepartmentTeamMemberSchema = z.object({
+export const Member = z.object({
   id: z.number(),
   name: z.string(),
   role: z.string()
 });
 
-export type TOrganizationDepartmentTeamMemberSchema = z.infer<typeof OrganizationDepartmentTeamMemberSchema>;
+export type TMember = z.infer<typeof Member>;
 
-export const OrganizationDepartmentTeamSchema = z.object({
+export const Team = z.object({
   team_name: z.string(),
-  members: z.array(OrganizationDepartmentTeamMemberSchema)
+  members: z.array(Member)
 });
 
-export type TOrganizationDepartmentTeamSchema = z.infer<typeof OrganizationDepartmentTeamSchema>;
+export type TTeam = z.infer<typeof Team>;
 
-export const OrganizationDepartmentSchema = z.object({
+export const Department = z.object({
   dept_name: z.string(),
-  teams: z.array(OrganizationDepartmentTeamSchema)
+  teams: z.array(Team)
 });
 
-export type TOrganizationDepartmentSchema = z.infer<typeof OrganizationDepartmentSchema>;
+export type TDepartment = z.infer<typeof Department>;
 
-export const OrganizationSchema = z.object({
+export const Organization = z.object({
   org_name: z.string(),
-  departments: z.array(OrganizationDepartmentSchema),
+  departments: z.array(Department),
   employee_count: z.number()
 });
 
-export type TOrganizationSchema = z.infer<typeof OrganizationSchema>;
+export type TOrganization = z.infer<typeof Organization>;
