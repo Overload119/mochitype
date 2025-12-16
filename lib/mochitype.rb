@@ -13,6 +13,7 @@ require 'mochitype/convertible_class'
 require 'mochitype/type_converter'
 require 'mochitype/reflection_type_converter'
 
+require 'mochitype/recursive_serializer'
 require 'mochitype/view'
 require 'mochitype/file_watcher'
 require 'mochitype/railtie' if defined?(Rails)

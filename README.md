@@ -98,10 +98,13 @@ Now if you change UsersController#index to return something different, it'll upd
 
 ## Using Mochitype::View for Rendering
 
-The `Mochitype::View` module provides a simple way to make your `T::Struct` classes renderable in Rails controllers. When you include this module, your struct gains two methods:
+The `Mochitype::View` module provides a simple way to make your `T::Struct` classes renderable in Rails controllers. When you include this module, your struct gains three methods:
 
-- `render_in(view_context)` - Serializes the struct to JSON
+- `serialize` - Overrides T::Struct's default serialize to always include nil keys (instead of omitting them)
+- `render_in(view_context)` - Serializes the struct to JSON using the above serialize method
 - `format` - Returns `:json` to indicate the response format
+
+**Note:** Unlike Sorbet's default `T::Struct#serialize` which omits keys with nil values, `Mochitype::View#serialize` always includes all keys. This ensures consistent JSON structure that matches your generated Zod schemas.
 
 ### Basic Usage
 
@@ -200,7 +203,7 @@ This keeps your frontend types perfectly in sync with your backend responses!
 
 - Currently only works with T::Structs, T::Enum, and standard Ruby types like String, Integer, etc. If your struct has a field that's a custom class, it will be marked as `unknown`
 - Since we're using the Prism parser, it requires Ruby 3.3.5+
-- It does not de-dupe types across files. For example, if you have MyStruct and reference MyOtherStruct, both of those Typescript files will contain TS on MyOtherStruct.
+- It does not de-dupe types across files. For example, if you have MyStruct and reference MyOtherStruct, both of those Typescript files will contain TS on MyOtherStruct
 
 ## Development
 
